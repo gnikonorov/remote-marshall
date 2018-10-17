@@ -15,11 +15,11 @@ The following commands may be run for this script.
 1. --add_host
 
    This command will add a host to the list of _marshalled hosts_. These are hosts that this script will send commands over ssh to.
-   
+
 2. --remove_host
 
    Remove a host from the list of _marshalled hosts_. This menas that this script will no longer send ssh commands to the host.
-   
+
 3. --display_config
 
    Output a list of hosts that are currently _marshalled hosts_ and also output the set threshold ( if defined ).
