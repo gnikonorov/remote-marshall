@@ -24,7 +24,7 @@ function add_host {
 				break
 				;;
 			"n" )
-				echo "Goodbye"
+				echo "You have declined to add a host to your configuration"
 				return $STATUS_OK
 				;;
 		esac
@@ -35,9 +35,9 @@ function add_host {
 		read host_ip
 
 		if [[ -z "$host_ip" ]]; then
-			echo "Please provide host ip!"
+			echo "Please provide host IP address"
 		else
-			echo "Storing $host_ip to marshalled hosts!"
+			echo "Adding '$host_ip' to marshalled hosts"
 
 			if [[ ! -d "$CONFIG_DIR" ]]; then
 				mkdir "$CONFIG_DIR"
@@ -61,14 +61,14 @@ function remove_host {
 				break
 				;;
 			"n" )
-				echo "Goodbye"
+				echo "You have declined to remove a host from your configuration"
 				return $STATUS_OK
 				;;
 		esac
 	done
 
 	# Get all registered hosts
-	no_hosts_message="No hosts registered! Goodbye."
+	no_hosts_message="No hosts registered, nothing to remove"
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		echo "$no_hosts_message"
 		return $STATUS_OK
@@ -86,7 +86,7 @@ function remove_host {
 		select answer in "${hosts[@]}"; do
 			if [[ ! -z "$answer" ]]; then
 				# remove old copy of file and remake it, without the removed entry
-				> "$CONFIG_DIR/$HOSTS_FILE"
+				rm "$CONFIG_DIR/$HOSTS_FILE"
 
 				for host in "${hosts[@]}"; do
 					if [[ "$host" != "$answer" ]]; then
@@ -113,7 +113,7 @@ function set_threshold {
 				break
 				;;
 			"n" )
-				echo "Goodbye"
+				echo "You have declined to set a threshold"
 				return $STATUS_OK
 				;;
 			"delete old threshold" )
@@ -125,10 +125,10 @@ function set_threshold {
 
 	if [[ "$deleting_threshold" -eq 1 ]]; then
 		if [[ -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
-			echo "Deleting old threshold."
+			echo "Deleting old threshold"
 			rm "$CONFIG_DIR/$THRESHOLD_FILE"
 		else
-			echo "Threshold was never set! Nothing to do here."
+			echo "No threshold was set. Noop"
 			return $STATUS_OK
 		fi
 
@@ -136,17 +136,17 @@ function set_threshold {
 	fi
 
 	while true; do
-		echo "enter a success threshold ( should be a percentage between 0 - 100 )"
+		echo "Enter a success threshold ( should be a percentage between 0 - 100 ): "
 		read threshold
 
 		if [[ -z "$threshold" ]]; then
-			echo "Please provide threshold amount!"
+			echo "Please provide a threshold amount"
 		else
 			# verify it is a number ( with optional % mark )
 			valid_threshold_regex='^([0-9]{1,2}|100)%{0,1}$'
 			starts_w_percent_regex='^([0-9]{1,2}|100)%$'
 			if [[ ! "$threshold" =~ $valid_threshold_regex ]]; then
-				echo "Invalid threshold!"
+				>&2 echo "Invalid threshold '$threshold' provided"
 			else
 				if [[ "$threshold" =~ $starts_w_percent_regex ]]; then
 					# strip % if it is present
@@ -167,8 +167,9 @@ function set_threshold {
 
 function display_config {
 	# For now we can only show hosts file
+	# TODO: Make this better
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]] && [[ ! -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
-		echo "Nothing to show! No configuration detected!"
+		echo "No configuration files detected"
 	fi
 
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
@@ -198,13 +199,13 @@ function exec_command {
 	# store our hosts in an array
 	# if no file exists, or there are no hosts error
 	# TODO: Stresstest to make sure we make threshold under various number of hosts and failures ( passed base case tests)
-	no_hosts_error="No hosts detected! Please run ./marshall -h"
+	no_hosts_error="No hosts detected. Run './marshall -h' for help menu"
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		hosts=()
 		readarray -t hosts < "$CONFIG_DIR/$HOSTS_FILE"
 
 		if [[ "${#hosts[@]}" -eq 0 ]]; then
-			echo "$no_hosts_error"
+			>&2 echo "$no_hosts_error"
 			return $STATUS_NO_HOSTS
 		fi
 
@@ -212,9 +213,9 @@ function exec_command {
 		number_of_hosts="${#hosts[@]}"
 		num_failed_hosts=0
 		for host in "${hosts[@]}"; do
-			echo "Will send $exec_command to $host"
+			echo "Seinding: '$exec_command' to '$host'"
 			if ! ssh "$USER@$host" "\$exec_command"; then
-				echo "Error ssh'ing command $exec_command to $USER@$host"
+				>&2 echo "Error ssh'ing command to '$USER@$host'"
 				num_failed_hosts=$((num_failed_hosts + 1))
 			fi
 		done
@@ -222,11 +223,11 @@ function exec_command {
 		# see if threshold was passed. If it was not, error out.
 		threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
 		if [[ $threshold_reached -lt $threshold ]]; then
-			echo "ERROR: Threshold not reached. Please see above output."
+			>&2 echo "Threshold unmet; see above output"
 			return $STATUS_THRESHOLD_NOT_REACHED
 		fi
 	else
-		echo "$no_hosts_error"
+		>&2 echo "$no_hosts_error"
 		return $STATUS_NO_HOSTS
 	fi
 }
@@ -236,25 +237,26 @@ function print_help {
 ./marshall.sh COMMAND [ -a | --add_host ] [ -d | --display_config ] [ -s | --set_threshold] [ -h | --help ]
 
 Sends command <COMMAND> to a list of predefined hosts. If all hosts report back success,
-this command exits with 0. Else a list of failed hosts is outputted and script will exit
-with failure.
+this utility will exit with success. Else a list of failed hosts is outputted and utility
+will exit with failure, unless a threshold <THRESHOLD> is set in which case <THRESHOLD>
+hosts must pass for this utility to pass.
+
+If any flags are passed in, <COMMAND> is not executed.
 
 Arguments:
 	COMMAND: The command to execute over ssh
 		 Note that this command should be sent in an ssh compatable format.
-		 This utility is not guaranteed to work for commands that are not in an
-		 ssh compatable format.
-	[ -a | --add_host ]: Add a host to marshall commands to
-	[ -r | --remove_host ]: Remove a currently marshall'able host
-	[ -d | --display_config ]: Show current configuration of utility
-	[ -s | --set_threshold ]: Sets number of hosts that must execute command successfully
-	[ -h | --help ]: Print this help message
+	[ -a | --add_host ]: 	   Add a host to marshall commands to
+	[ -r | --remove_host ]:    Remove a currently marshall'able host
+	[ -d | --display_config ]: Show current configuration of this utility
+	[ -s | --set_threshold ]:  Sets number of hosts that must execute their command successfully
+	[ -h | --help ]:           Print this help message
 HELP_TEXT
 }
 
 # Argument parsing
 if [ $# -eq 0 ]; then
-	echo "No arguments passed in!"
+	>&2 echo "No arguments passed in"
 	print_help
 
 	exit $STATUS_INVALID_ARGUMENTS
@@ -297,8 +299,9 @@ do
 done
 
 if [[ $num_flags_set -gt 1 ]]; then
-	echo "Please pass either -a, -d, or -s but not more than one!"
+	>&2 echo "Flag combination invalid; provide only one flag"
 	print_help
+
 	exit $STATUS_INVALID_ARGUMENTS
 elif [[ $adding_host == 1 ]]; then
 	add_host
