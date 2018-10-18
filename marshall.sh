@@ -17,7 +17,7 @@ HOSTS_FILE="hosts"
 
 function add_host {
 	echo "Confirm you wish to add a host to your configuration:"
-	options=("y" "n")
+	local options=("y" "n")
 	select answer in "${options[@]}"; do
 		case $answer in
 			"y" )
@@ -31,6 +31,7 @@ function add_host {
 	done
 
 	while true; do
+		local host_ip
 		echo "Enter host IP address"
 		read host_ip
 
@@ -54,7 +55,7 @@ function add_host {
 
 function remove_host {
 	echo "Confirm you wish to remove a host from your configuration:"
-	options=("y" "n")
+	local options=("y" "n")
 	select answer in "${options[@]}"; do
 		case $answer in
 			"y" )
@@ -68,13 +69,13 @@ function remove_host {
 	done
 
 	# Get all registered hosts
-	no_hosts_message="No hosts registered, nothing to remove"
+	local no_hosts_message="No hosts registered, nothing to remove"
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		echo "$no_hosts_message"
 		return $STATUS_OK
 	fi
 
-	hosts=()
+	local hosts=()
 	readarray -t hosts < "$CONFIG_DIR/$HOSTS_FILE"
 	while true; do
 		if [[ "${#hosts[@]}" -eq 0 ]]; then
@@ -103,10 +104,10 @@ function remove_host {
 }
 
 function set_threshold {
-	deleting_threshold=0
+	local deleting_threshold=0
 
 	echo "Do you want to set a success threshold?"
-	options=("y" "n" "delete old threshold")
+	local options=("y" "n" "delete old threshold")
 	select answer in "${options[@]}"; do
 		case $answer in
 			"y" )
@@ -137,14 +138,16 @@ function set_threshold {
 
 	while true; do
 		echo "Enter a success threshold ( should be a percentage between 0 - 100 ): "
+
+		local threshold
 		read threshold
 
 		if [[ -z "$threshold" ]]; then
 			echo "Please provide a threshold amount"
 		else
 			# verify it is a number ( with optional % mark )
-			valid_threshold_regex='^([0-9]{1,2}|100)%{0,1}$'
-			starts_w_percent_regex='^([0-9]{1,2}|100)%$'
+			local valid_threshold_regex='^([0-9]{1,2}|100)%{0,1}$'
+			local starts_w_percent_regex='^([0-9]{1,2}|100)%$'
 			if [[ ! "$threshold" =~ $valid_threshold_regex ]]; then
 				>&2 echo "Invalid threshold '$threshold' provided"
 			else
@@ -195,14 +198,14 @@ function display_config {
 }
 
 function exec_command {
-	exec_command=$1
+	local exec_command=$1
 
 	# trim any leading and trailing whitespace
 	exec_command=${exec_command## }  # remove any leading spaces
 	exec_command=${exec_command%% }  # remove any trailing spaces
 
 	# get our threshold ( if any )
-	threshold=-1
+	local threshold=-1
 	if [[ -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
 		threshold=$(cat "$CONFIG_DIR/$THRESHOLD_FILE")
 	fi
@@ -210,9 +213,9 @@ function exec_command {
 	# store our hosts in an array
 	# if no file exists, or there are no hosts error
 	# TODO: Stresstest to make sure we make threshold under various number of hosts and failures ( passed base case tests)
-	no_hosts_error="No hosts detected. Run './marshall -h' for help menu"
+	local no_hosts_error="No hosts detected. Run './marshall -h' for help menu"
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
-		hosts=()
+		local hosts=()
 		readarray -t hosts < "$CONFIG_DIR/$HOSTS_FILE"
 
 		if [[ "${#hosts[@]}" -eq 0 ]]; then
@@ -221,8 +224,8 @@ function exec_command {
 		fi
 
 		# send the requested command to all hosts
-		number_of_hosts="${#hosts[@]}"
-		num_failed_hosts=0
+		local number_of_hosts="${#hosts[@]}"
+		local num_failed_hosts=0
 		for host in "${hosts[@]}"; do
 			echo "Seinding: '$exec_command' to '$host'"
 			if ! ssh "$USER@$host" "\$exec_command"; then
@@ -232,6 +235,7 @@ function exec_command {
 		done
 
 		# see if threshold was passed. If it was not, error out.
+		local threshold_reached
 		threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
 		if [[ $threshold_reached -lt $threshold ]]; then
 			>&2 echo "Threshold unmet; see above output"
