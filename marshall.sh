@@ -170,17 +170,28 @@ function display_config {
 	# TODO: Make this better
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]] && [[ ! -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
 		echo "No configuration files detected"
+		return $STATUS_OK
 	fi
 
+	local printed_hosts=0
+	local config_display_text=''
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
-		echo "MARSHALLED HOSTS:"
-		cat "$CONFIG_DIR/$HOSTS_FILE"
+		config_display_text="MARSHALLED HOSTS:"
+		config_display_text="${config_display_text}\n$(cat ${CONFIG_DIR}/${HOSTS_FILE})"
+
+		printed_hosts=1
 	fi
 
 	if [[ -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
-		echo "CURRENT THRESHOLD:"
-		cat "$CONFIG_DIR/$THRESHOLD_FILE"
+		if [ $printed_hosts -eq 1 ]; then
+			config_display_text="${config_display_text}\n\n"
+		fi
+
+		config_display_text="${config_display_text}CURRENT THRESHOLD:"
+		config_display_text="${config_display_text}\n$(cat ${CONFIG_DIR}/${THRESHOLD_FILE})\n"
 	fi
+
+	printf "${config_display_text}"
 }
 
 function exec_command {
