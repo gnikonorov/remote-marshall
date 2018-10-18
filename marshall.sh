@@ -5,6 +5,12 @@
 
 set -eou pipefail
 
+# exit/return status codes
+STATUS_OK=0
+STATUS_INVALID_ARGUMENTS=1
+STATUS_NO_HOSTS=2
+STATUS_THRESHOLD_NOT_REACHED=3
+
 CONFIG_DIR="$HOME/.marshall"
 THRESHOLD_FILE="threshold"
 HOSTS_FILE="hosts"
@@ -19,7 +25,7 @@ function add_host {
 				;;
 			"n" )
 				echo "Goodbye"
-				return 0
+				return $STATUS_OK
 				;;
 		esac
 	done
@@ -56,7 +62,7 @@ function remove_host {
 				;;
 			"n" )
 				echo "Goodbye"
-				return 0
+				return $STATUS_OK
 				;;
 		esac
 	done
@@ -65,7 +71,7 @@ function remove_host {
 	no_hosts_message="No hosts registered! Goodbye."
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		echo "$no_hosts_message"
-		return 0
+		return $STATUS_OK
 	fi
 
 	hosts=()
@@ -73,7 +79,7 @@ function remove_host {
 	while true; do
 		if [[ "${#hosts[@]}" -eq 0 ]]; then
 			echo "$no_hosts_message"
-			return 0
+			return $STATUS_OK
 		fi
 
 		echo "Select a host to remove:"
@@ -108,7 +114,7 @@ function set_threshold {
 				;;
 			"n" )
 				echo "Goodbye"
-				return 0
+				return $STATUS_OK
 				;;
 			"delete old threshold" )
 				deleting_threshold=1
@@ -123,10 +129,10 @@ function set_threshold {
 			rm "$CONFIG_DIR/$THRESHOLD_FILE"
 		else
 			echo "Threshold was never set! Nothing to do here."
-			return 0
+			return $STATUS_OK
 		fi
 
-		return 0
+		return $STATUS_OK
 	fi
 
 	while true; do
@@ -199,7 +205,7 @@ function exec_command {
 
 		if [[ "${#hosts[@]}" -eq 0 ]]; then
 			echo "$no_hosts_error"
-			return 1
+			return $STATUS_NO_HOSTS
 		fi
 
 		# send the requested command to all hosts
@@ -217,11 +223,11 @@ function exec_command {
 		threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
 		if [[ $threshold_reached -lt $threshold ]]; then
 			echo "ERROR: Threshold not reached. Please see above output."
-			return 2
+			return $STATUS_THRESHOLD_NOT_REACHED
 		fi
 	else
 		echo "$no_hosts_error"
-		return 1
+		return $STATUS_NO_HOSTS
 	fi
 }
 
@@ -251,7 +257,7 @@ if [ $# -eq 0 ]; then
 	echo "No arguments passed in!"
 	print_help
 
-	exit 1
+	exit $STATUS_INVALID_ARGUMENTS
 fi
 
 adding_host=0
@@ -263,7 +269,7 @@ while test $# -gt 0; do
 	case "$1" in
 		-h|--help)
 			print_help
-			exit 0;;
+			exit $STATUS_OK;;
 		-a|--add_host)
 			adding_host=1;;
 		-r|--remove-host)
@@ -293,7 +299,7 @@ done
 if [[ $num_flags_set -gt 1 ]]; then
 	echo "Please pass either -a, -d, or -s but not more than one!"
 	print_help
-	exit 0
+	exit $STATUS_INVALID_ARGUMENTS
 elif [[ $adding_host == 1 ]]; then
 	add_host
 elif [[ $removing_host == 1 ]]; then
@@ -307,4 +313,4 @@ else
 	exit $?
 fi
 
-exit 0
+exit $STATUS_OK
