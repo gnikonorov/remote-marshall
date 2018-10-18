@@ -1,7 +1,7 @@
 #!/bin/bash
-# Script responsible for executing provided command to a series of boxes, and reporting status back to user.
+#
+# Script responsible for executing a provided command to a series of hosts, and reporting status back to user.
 # TODO: Account for various file permission states
-# TODO: Make exit statuses make sense
 
 set -eou pipefail
 
@@ -15,6 +15,19 @@ CONFIG_DIR="$HOME/.marshall"
 THRESHOLD_FILE="threshold"
 HOSTS_FILE="hosts"
 
+#########################################################################################
+# Prompt the user to add a host to the hosts file located at $CONFIG_DIR/$HOSTS_FILE.
+# If the config directory does not exist, it is created. If the hosts file does not
+# exist, it is created.
+#
+# Globals:
+#   CONFIG_DIR
+#   HOSTS_FILE
+# Arguments:
+#   None
+# Returns:
+#   A status indicative of function success as per glocal exit/return status codes.
+#########################################################################################
 function add_host {
 	echo "Confirm you wish to add a host to your configuration:"
 	local options=("y" "n")
@@ -35,6 +48,7 @@ function add_host {
 		echo "Enter host IP address"
 		read host_ip
 
+		# TODO: Verify we are passed a valid IP address
 		if [[ -z "$host_ip" ]]; then
 			echo "Please provide host IP address"
 		else
@@ -53,6 +67,17 @@ function add_host {
 	done
 }
 
+#############################################################################################
+# Prompt the user to remove a host from the hosts file located at $CONFIG_DIR/$HOSTS_FILE.
+#
+# Globals:
+#   CONFIG_DIR
+#   HOSTS_FILE
+# Arguments:
+#   None
+# Returns:
+#   A status indicative of function success as per glocal exit/return status codes.
+#############################################################################################
 function remove_host {
 	echo "Confirm you wish to remove a host from your configuration:"
 	local options=("y" "n")
@@ -86,6 +111,7 @@ function remove_host {
 		echo "Select a host to remove:"
 		select answer in "${hosts[@]}"; do
 			if [[ ! -z "$answer" ]]; then
+				# TODO: Remove the hosts file if it is empty
 				# remove old copy of file and remake it, without the removed entry
 				rm "$CONFIG_DIR/$HOSTS_FILE"
 
@@ -103,6 +129,21 @@ function remove_host {
 	done
 }
 
+#########################################################################################
+# Set the threshold value for the marshall script, or give the option to remove one if
+# it already exists.
+#
+# A threshold is defined as the minimum percent of hosts that must return success for a
+# command in order for a script run to count as a success.
+#
+# Globals:
+#   CONFIG_DIR
+#   THRESHOLD_FILE
+# Arguments:
+#   None
+# Returns:
+#   A status indicative of function success as per global exit/return status codes.
+#########################################################################################
 function set_threshold {
 	local deleting_threshold=0
 
@@ -168,9 +209,20 @@ function set_threshold {
 	done
 }
 
+#####################################################################################################
+# Format and output the contents of the hosts file $HOSTS_FILE and threshold file $THRESHOLD_FILE
+# located in $CONFIG_DIR, if they exist to STDOUT.
+#
+# Globals:
+#	CONFIG_DIR
+#	HOSTS_FILE
+#	THRESHOLD_FILE
+# Arguments:
+#	None
+# Returns:
+#	A status indicative of function success as per global exit/return status codes.
+#####################################################################################################
 function display_config {
-	# For now we can only show hosts file
-	# TODO: Make this better
 	if [[ ! -f "$CONFIG_DIR/$HOSTS_FILE" ]] && [[ ! -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
 		echo "No configuration files detected"
 		return $STATUS_OK
@@ -197,6 +249,19 @@ function display_config {
 	printf "${config_display_text}"
 }
 
+#####################################################################################################
+# Execute provided command for all hosts in $CONFIG_DIR/$HOSTS_FILE. If threshold as defined in
+# $CONFIG_DIR/$THRESHOLD_FILE is unmet, then return an error.
+#
+# Globals:
+#	CONFIG_DIR
+#	HOSTS_FILE
+#	THRESHOLD_FILE
+# Arguments:
+#	None
+# Returns:
+#	A status indicative of function success as per global exit/return status codes.
+#####################################################################################################
 function exec_command {
 	local exec_command=$1
 
@@ -212,7 +277,7 @@ function exec_command {
 
 	# store our hosts in an array
 	# if no file exists, or there are no hosts error
-	# TODO: Stresstest to make sure we make threshold under various number of hosts and failures ( passed base case tests)
+	# TODO: Stresstest to make sure we make threshold under various number of hosts and failures ( passed base case tests )
 	local no_hosts_error="No hosts detected. Run './marshall -h' for help menu"
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		local hosts=()
@@ -235,6 +300,9 @@ function exec_command {
 		done
 
 		# see if threshold was passed. If it was not, error out.
+		# TODO: Be more explicit in noting when we should not check threshold. As of right now this will always
+		# 		be false if threshold was unset as threshold will be set to -1, but that's pretty confusing since
+		#		it requires us to read above.
 		local threshold_reached
 		threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
 		if [[ $threshold_reached -lt $threshold ]]; then
@@ -247,6 +315,7 @@ function exec_command {
 	fi
 }
 
+# Output the script help menu, and return nothing.
 function print_help {
 	cat <<HELP_TEXT
 ./marshall.sh COMMAND [ -a | --add_host ] [ -d | --display_config ] [ -s | --set_threshold] [ -h | --help ]
@@ -269,7 +338,7 @@ Arguments:
 HELP_TEXT
 }
 
-# Argument parsing
+# This script requires at least one argument, the command string
 if [ $# -eq 0 ]; then
 	>&2 echo "No arguments passed in"
 	print_help
