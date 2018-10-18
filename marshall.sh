@@ -299,15 +299,14 @@ function exec_command {
 			fi
 		done
 
-		# see if threshold was passed. If it was not, error out.
-		# TODO: Be more explicit in noting when we should not check threshold. As of right now this will always
-		# 		be false if threshold was unset as threshold will be set to -1, but that's pretty confusing since
-		#		it requires us to read above.
-		local threshold_reached
-		threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
-		if [[ $threshold_reached -lt $threshold ]]; then
-			>&2 echo "Threshold unmet; see above output"
-			return $STATUS_THRESHOLD_NOT_REACHED
+		# check threshold only if it was set.
+		if [ $threshold -ne -1 ]; then
+			local threshold_reached
+			threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
+			if [[ $threshold_reached -lt $threshold ]]; then
+				>&2 echo "Threshold unmet; see above output"
+				return $STATUS_THRESHOLD_NOT_REACHED
+			fi
 		fi
 	else
 		>&2 echo "$no_hosts_error"
