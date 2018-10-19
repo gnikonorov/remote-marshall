@@ -15,7 +15,7 @@ CONFIG_DIR="$HOME/.marshall"
 THRESHOLD_FILE="threshold"
 HOSTS_FILE="hosts"
 
-#########################################################################################
+########################################################################################
 # Prompt the user to add a host to the hosts file located at $CONFIG_DIR/$HOSTS_FILE.
 # If the config directory does not exist, it is created. If the hosts file does not
 # exist, it is created.
@@ -46,7 +46,7 @@ function add_host {
 	while true; do
 		local host_ip
 		echo "Enter host IP address"
-		read host_ip
+		read -r host_ip
 
 		# TODO: Verify we are passed a valid IP address
 		if [[ -z "$host_ip" ]]; then
@@ -181,7 +181,7 @@ function set_threshold {
 		echo "Enter a success threshold ( should be a percentage between 0 - 100 ): "
 
 		local threshold
-		read threshold
+		read -r threshold
 
 		if [[ -z "$threshold" ]]; then
 			echo "Please provide a threshold amount"
@@ -230,23 +230,24 @@ function display_config {
 
 	local printed_hosts=0
 	local config_display_text=''
+	local newline='\n'
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		config_display_text="MARSHALLED HOSTS:"
-		config_display_text="${config_display_text}\n$(cat ${CONFIG_DIR}/${HOSTS_FILE})"
+		config_display_text=${config_display_text}${newline}$(cat "${CONFIG_DIR}"/${HOSTS_FILE})
 
 		printed_hosts=1
 	fi
 
 	if [[ -f "$CONFIG_DIR/$THRESHOLD_FILE" ]]; then
 		if [ $printed_hosts -eq 1 ]; then
-			config_display_text="${config_display_text}\n\n"
+			config_display_text=${config_display_text}'\n\n'
 		fi
 
 		config_display_text="${config_display_text}CURRENT THRESHOLD:"
-		config_display_text="${config_display_text}\n$(cat ${CONFIG_DIR}/${THRESHOLD_FILE})\n"
+		config_display_text=${config_display_text}${newline}$(cat "${CONFIG_DIR}"/${THRESHOLD_FILE})'\n'
 	fi
 
-	printf "${config_display_text}"
+	echo -e "${config_display_text}"
 }
 
 #####################################################################################################
@@ -300,6 +301,8 @@ function exec_command {
 		done
 
 		# check threshold only if it was set.
+		# shellcheck disable=2086
+		#   integer can never be globbed or word split
 		if [ $threshold -ne -1 ]; then
 			local threshold_reached
 			threshold_reached=$(echo - | awk "{ print 100 - ( ( $num_failed_hosts / $number_of_hosts ) * 100 ) }")
@@ -372,7 +375,7 @@ done
 
 # handle ambiguous commands
 num_flags_set=0
-all_flags=($adding_host $removing_host $displaying_config $setting_threshold)
+all_flags=("$adding_host" "$removing_host" "$displaying_config" "$setting_threshold")
 for i in "${all_flags[@]}"
 do
 	:
