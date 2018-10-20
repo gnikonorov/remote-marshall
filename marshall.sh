@@ -20,6 +20,9 @@ HOSTS_FILE="hosts"
 # If the config directory does not exist, it is created. If the hosts file does not
 # exist, it is created.
 #
+# Hosts will be verified via the 'ping' command. If a host is unpingable, the user will
+# be asked to confirm the addition of the host.
+#
 # Globals:
 #   CONFIG_DIR
 #   HOSTS_FILE
@@ -52,6 +55,29 @@ function add_host {
 		if [[ -z "$host_ip" ]]; then
 			echo "Please provide host IP address"
 		else
+			# ping the host to verify it is up
+			local ping_amounts=3
+			local ping_output=''
+			if ! ping_output=$(ping "$host_ip" -c $ping_amounts 2>&1); then
+				# TODO: print to warning stream?
+				local newline='\n'
+				echo -e "WARN: Host '${host_ip}' was not pingable. Please review the output below and confirm its addition:${newline}\`${ping_output}\`"
+
+				local options=("add host" "skip host")
+				select answer in "${options[@]}"; do
+					case $answer in
+						"add host" )
+							echo "Adding non-pingable host '$host_ip'"
+							break
+							;;
+						"skip host" )
+							echo "Not adding unreachable host '$host_ip'"
+							return $STATUS_OK
+							;;
+					esac
+				done
+			fi
+
 			echo "Adding '$host_ip' to marshalled hosts"
 
 			if [[ ! -d "$CONFIG_DIR" ]]; then

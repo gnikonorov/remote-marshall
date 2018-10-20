@@ -4,7 +4,7 @@ __Remote marshall is a shell script that is responsible for coordinating command
 
 ## Description
 
-Remote marshall is used to orchestrate ssh commands to a set of user defined hosts. The script will send a requested command to the set of hosts and record any error hosts. 
+Remote marshall is used to orchestrate ssh commands to a set of user defined hosts. The script will send a requested command to the set of hosts and note any erroring hosts.
 
 Additionally, a _threshold_ may be set. A threshold is the indication of the minimum number hosts required to pass in order for script run to be considered a success. If threshold is not met for a run of `marshall.sh`, the script will terminate with an exit code of 2 and output an error to `STDOUT`.
 
@@ -18,7 +18,7 @@ The following commands may be run for this script.
 
 2. --remove_host
 
-   Remove a host from the list of _marshalled hosts_. This menas that this script will no longer send ssh commands to the host.
+   Remove a host from the list of _marshalled hosts_. This means that this script will no longer send ssh commands to the host.
 
 3. --display_config
 
@@ -32,4 +32,4 @@ For the help menu of this script, please run `./marshall.sh -h`
 
 ## Limitations
 
-This script will not check to make sure that the hosts added are reachable over ssh, and will not validate that the commands provided to it are executable on any remote hosts. This is left up to the user to verify before invocation of this script.
+This script will not validate that the commands provided to it are executable on the remote hosts. This is left up to the user to verify before invocation of this script.
