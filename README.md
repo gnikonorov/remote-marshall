@@ -24,7 +24,11 @@ The following commands may be run for this script.
 
    Output a list of hosts that are currently _marshalled hosts_ and also output the set threshold ( if defined ).
 
-4. --set_threshold
+4. --is_file
+
+   Treat the provided command as a file name instead, and send its contents.
+
+5. --set_threshold
 
    Set the threshold that must be met in order for a run of `marshall.sh` to count as a success. This number is interpretted as a percentage, and if less than threshold% hosts report success, the script will exit with status 2.
 

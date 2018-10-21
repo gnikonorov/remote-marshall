@@ -10,10 +10,14 @@ STATUS_OK=0
 STATUS_INVALID_ARGUMENTS=1
 STATUS_NO_HOSTS=2
 STATUS_THRESHOLD_NOT_REACHED=3
+STATUS_NO_EXEC_FILE=4
 
 CONFIG_DIR="$HOME/.marshall"
 THRESHOLD_FILE="threshold"
 HOSTS_FILE="hosts"
+
+# if the command the user is executing is a file, this flag will be set to 1
+COMMAND_IS_FILE=0
 
 ########################################################################################
 # Prompt the user to add a host to the hosts file located at $CONFIG_DIR/$HOSTS_FILE.
@@ -51,7 +55,6 @@ function add_host {
 		echo "Enter host IP address"
 		read -r host_ip
 
-		# TODO: Verify we are passed a valid IP address
 		if [[ -z "$host_ip" ]]; then
 			echo "Please provide host IP address"
 		else
@@ -282,6 +285,7 @@ function display_config {
 #
 # Globals:
 #	CONFIG_DIR
+#	COMMAND_IS_FILE
 #	HOSTS_FILE
 #	THRESHOLD_FILE
 # Arguments:
@@ -306,6 +310,7 @@ function exec_command {
 	# if no file exists, or there are no hosts error
 	# TODO: Stresstest to make sure we make threshold under various number of hosts and failures ( passed base case tests )
 	local no_hosts_error="No hosts detected. Run './marshall -h' for help menu"
+	local no_exec_file_error="File '$exec_command' does not exist, exiting with error."
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		local hosts=()
 		readarray -t hosts < "$CONFIG_DIR/$HOSTS_FILE"
@@ -315,12 +320,24 @@ function exec_command {
 			return $STATUS_NO_HOSTS
 		fi
 
+		# if the user specified a file as a command, extract the contents of the file to send
+		if [[ $COMMAND_IS_FILE == 1 ]]; then
+			if [[ ! -f "$exec_command" ]]; then
+				>&2 echo "$no_exec_file_error"
+				return $STATUS_NO_EXEC_FILE
+			fi
+
+			exec_command=$(cat "$exec_command")
+		fi
+
 		# send the requested command to all hosts
 		local number_of_hosts="${#hosts[@]}"
 		local num_failed_hosts=0
 		for host in "${hosts[@]}"; do
-			echo "Seinding: '$exec_command' to '$host'"
-			if ! ssh "$USER@$host" "\$exec_command"; then
+			# TODO: crashes when issue occurs sending command to host because of setflags
+			echo "Sending: '$exec_command' to '$host'"
+			ssh "$USER@$host" "$exec_command"
+			if [[ $? != 0 ]]; then
 				>&2 echo "Error ssh'ing command to '$USER@$host'"
 				num_failed_hosts=$((num_failed_hosts + 1))
 			fi
@@ -346,21 +363,23 @@ function exec_command {
 # Output the script help menu, and return nothing.
 function print_help {
 	cat <<HELP_TEXT
-./marshall.sh COMMAND [ -a | --add_host ] [ -d | --display_config ] [ -s | --set_threshold] [ -h | --help ]
+./marshall.sh COMMAND [ -a | --add_host ] [ -r | --remove_host ] [ -d | --display_config ] [ -i | --is_file ] [ -s | --set_threshold ] [ -h | --help ]
 
 Sends command <COMMAND> to a list of predefined hosts. If all hosts report back success,
 this utility will exit with success. Else a list of failed hosts is outputted and utility
 will exit with failure, unless a threshold <THRESHOLD> is set in which case <THRESHOLD>
 hosts must pass for this utility to pass.
 
-If any flags are passed in, <COMMAND> is not executed.
+If any flags are passed in except for '-i', <COMMAND> is not executed.
 
 Arguments:
-	COMMAND: The command to execute over ssh
-		 Note that this command should be sent in an ssh compatable format.
+	COMMAND:                   The command to execute over ssh
+	                           Note that this command should be sent in an ssh compatable format.
 	[ -a | --add_host ]: 	   Add a host to marshall commands to
 	[ -r | --remove_host ]:    Remove a currently marshall'able host
 	[ -d | --display_config ]: Show current configuration of this utility
+	[ -i | --is_file ]:        If this flag is passed, cat out <COMMAND> and execute its contents
+	                           Note that the contents of this file are not validated, and are sent as is to hosts.
 	[ -s | --set_threshold ]:  Sets number of hosts that must execute their command successfully
 	[ -h | --help ]:           Print this help message
 HELP_TEXT
@@ -375,21 +394,23 @@ if [ $# -eq 0 ]; then
 fi
 
 adding_host=0
-removing_host=0
 displaying_config=0
+removing_host=0
 setting_threshold=0
 exec_command=''
 while test $# -gt 0; do
 	case "$1" in
+		-a|--add_host)
+			adding_host=1;;
+		-d|--display_config)
+			displaying_config=1;;
 		-h|--help)
 			print_help
 			exit $STATUS_OK;;
-		-a|--add_host)
-			adding_host=1;;
+		-i|--is_file)
+			COMMAND_IS_FILE=1;;
 		-r|--remove-host)
 			removing_host=1;;
-		-d|--display_config)
-			displaying_config=1;;
 		-s|--setting-threshold)
 			setting_threshold=1;;
 		*)
