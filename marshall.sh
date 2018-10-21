@@ -15,6 +15,7 @@ STATUS_NO_EXEC_FILE=4
 CONFIG_DIR="$HOME/.marshall"
 THRESHOLD_FILE="threshold"
 HOSTS_FILE="hosts"
+NEWLINE='\n'
 
 # if the command the user is executing is a file, this flag will be set to 1
 COMMAND_IS_FILE=0
@@ -30,6 +31,7 @@ COMMAND_IS_FILE=0
 # Globals:
 #   CONFIG_DIR
 #   HOSTS_FILE
+#   NEWLINE
 # Arguments:
 #   None
 # Returns:
@@ -63,8 +65,7 @@ function add_host {
 			local ping_output=''
 			if ! ping_output=$(ping "$host_ip" -c $ping_amounts 2>&1); then
 				# TODO: print to warning stream?
-				local newline='\n'
-				echo -e "WARN: Host '${host_ip}' was not pingable. Please review the output below and confirm its addition:${newline}\`${ping_output}\`"
+				echo -e "WARN: Host '${host_ip}' was not pingable. Please review the output below and confirm its addition:${NEWLINE}\`${ping_output}\`"
 
 				local options=("add host" "skip host")
 				select answer in "${options[@]}"; do
@@ -245,6 +246,7 @@ function set_threshold {
 # Globals:
 #	CONFIG_DIR
 #	HOSTS_FILE
+#	NEWLINE
 #	THRESHOLD_FILE
 # Arguments:
 #	None
@@ -259,10 +261,9 @@ function display_config {
 
 	local printed_hosts=0
 	local config_display_text=''
-	local newline='\n'
 	if [[ -f "$CONFIG_DIR/$HOSTS_FILE" ]]; then
 		config_display_text="MARSHALLED HOSTS:"
-		config_display_text=${config_display_text}${newline}$(cat "${CONFIG_DIR}"/${HOSTS_FILE})
+		config_display_text=${config_display_text}${NEWLINE}$(cat "${CONFIG_DIR}"/${HOSTS_FILE})
 
 		printed_hosts=1
 	fi
@@ -273,7 +274,7 @@ function display_config {
 		fi
 
 		config_display_text="${config_display_text}CURRENT THRESHOLD:"
-		config_display_text=${config_display_text}${newline}$(cat "${CONFIG_DIR}"/${THRESHOLD_FILE})'\n'
+		config_display_text=${config_display_text}${NEWLINE}$(cat "${CONFIG_DIR}"/${THRESHOLD_FILE})'\n'
 	fi
 
 	echo -e "${config_display_text}"
@@ -333,12 +334,19 @@ function exec_command {
 		# send the requested command to all hosts
 		local number_of_hosts="${#hosts[@]}"
 		local num_failed_hosts=0
+		local ssh_exit_code=0
+		local ssh_output=''
 		for host in "${hosts[@]}"; do
-			# TODO: crashes when issue occurs sending command to host because of setflags
-			echo "Sending: '$exec_command' to '$host'"
-			ssh "$USER@$host" "$exec_command"
-			if [[ $? != 0 ]]; then
-				>&2 echo "Error ssh'ing command to '$USER@$host'"
+			echo -e "Sending the following command to '${host}':${NEWLINE}'$exec_command'${NEWLINE}"
+
+			# disable '-e' so we don't exit if the ssh command errors
+			set +e
+			ssh_output=$(ssh "$USER@$host" "$exec_command" 2>&1)
+			ssh_exit_code=$?
+			set -e
+
+			if [[ $ssh_exit_code != 0 ]]; then
+				>&2 echo -e "The following error occurred ssh'ing command to '$USER@$host':${NEWLINE}${ssh_output}${NEWLINE}"
 				num_failed_hosts=$((num_failed_hosts + 1))
 			fi
 		done
